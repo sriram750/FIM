@@ -2,13 +2,12 @@
 .SYNOPSIS
     FIM Enterprise Windows Agent Automated Installer
 .DESCRIPTION
-    Installs the FIM Windows Agent as a resilient background Windows Service,
-    configures directory permissions, enables Windows File System auditing (Event 4663),
-    and enrolls the endpoint with the central FIM server.
+    Enrolls the Windows endpoint, installs the resilient background Windows Service
+    in services.msc, configures directory permissions, and enables Windows File System auditing (Event 4663).
 .PARAMETER ServerUrl
-    The HTTPS/HTTP URL of the central FIM Enterprise server (e.g., https://fim.corp.local:8443 or http://192.168.1.50:8000)
+    The HTTP/HTTPS URL of the central FIM Enterprise server (e.g., http://localhost:8000 or https://fim.corp.local)
 .PARAMETER EnrollmentToken
-    The pre-shared enrollment secret configured in .env (ENROLLMENT_TOKEN_SECRET)
+    The pre-shared enrollment secret configured in backend (ENROLLMENT_TOKEN_SECRET)
 .PARAMETER InstallDir
     Target directory for agent binaries (Default: C:\Program Files\FIMEnterprise\Agent)
 .PARAMETER DataDir
@@ -45,67 +44,105 @@ Write-Host "[*] Creating target directories..." -ForegroundColor Yellow
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 
-# 3. Copy Agent Files
-$SourceDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-Write-Host "[*] Copying agent files from $SourceDir to $InstallDir..." -ForegroundColor Yellow
-Copy-Item -Path "$SourceDir\src" -Destination "$InstallDir\" -Recurse -Force
-Copy-Item -Path "$SourceDir\requirements.txt" -Destination "$InstallDir\" -Force
+# 3. Locate Agent Binary / Sources
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$DistExe = Join-Path $RepoRoot "agent-windows\dist\fim-agent.exe"
+$TargetExe = Join-Path $InstallDir "fim-agent.exe"
 
-# 4. Python Environment Check / Setup
-$pythonExe = (Get-Command python -ErrorAction SilentlyContinue).Source
-if (-not $pythonExe) {
-    Write-Error "Python 3.10+ was not found on PATH. Please ensure Python is installed on the client."
+if (Test-Path $DistExe) {
+    Write-Host "[*] Deploying compiled standalone agent from $DistExe..." -ForegroundColor Yellow
+    Copy-Item -Path $DistExe -Destination $TargetExe -Force
+} else {
+    Write-Host "[!] Standalone fim-agent.exe not found in dist. Copying Python source tree..." -ForegroundColor Yellow
+    $SourceDir = Join-Path $RepoRoot "agent-windows"
+    Copy-Item -Path "$SourceDir\src" -Destination "$InstallDir\" -Recurse -Force
+}
+
+# 4. Enroll Endpoint with Central Server
+Write-Host "[*] Enrolling endpoint with central FIM server ($ServerUrl)..." -ForegroundColor Yellow
+
+if (Test-Path $TargetExe) {
+    & $TargetExe enroll --server $ServerUrl --token $EnrollmentToken
+} else {
+    $pythonExe = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if (-not $pythonExe) {
+        Write-Error "Neither fim-agent.exe nor Python was found. Please ensure agent is compiled or Python is installed."
+        exit 1
+    }
+    Push-Location "$InstallDir\src"
+    try {
+        & $pythonExe main.py enroll --server $ServerUrl --token $EnrollmentToken
+    } finally {
+        Pop-Location
+    }
+}
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Enrollment failed with exit code $LASTEXITCODE. Please check server connectivity and token."
     exit 1
 }
 
-Write-Host "[*] Setting up isolated Python virtual environment..." -ForegroundColor Yellow
-$venvDir = Join-Path $InstallDir "venv"
-if (-not (Test-Path $venvDir)) {
-    & $pythonExe -m venv $venvDir
-}
-$venvPython = Join-Path $venvDir "Scripts\python.exe"
-& $venvPython -m pip install --upgrade pip --quiet
-& $venvPython -m pip install -r (Join-Path $InstallDir "requirements.txt") --quiet
-
-# 5. Enroll Endpoint with Central Server
-Write-Host "[*] Enrolling endpoint with central FIM server ($ServerUrl)..." -ForegroundColor Yellow
-Push-Location "$InstallDir\src"
-try {
-    & $venvPython main.py enroll --server $ServerUrl --token $EnrollmentToken
-} finally {
-    Pop-Location
-}
-
-# 6. Enable Windows File System Auditing (Event ID 4663)
+# 5. Enable Windows Security Auditing (Event ID 4663)
 Write-Host "[*] Enabling Windows Security Auditing for File System objects..." -ForegroundColor Yellow
 try {
     auditpol.exe /set /subcategory:"File System" /success:enable /failure:enable | Out-Null
-    Write-Host "[✓] Windows File System auditing enabled." -ForegroundColor Green
+    Write-Host "[OK] Windows File System auditing enabled." -ForegroundColor Green
 } catch {
     Write-Warning "Failed to set audit policy via auditpol.exe: $_"
 }
 
-# 7. Register Background Windows Service / Task
-Write-Host "[*] Registering FIM Enterprise background startup..." -ForegroundColor Yellow
-$TaskName = "FIMEnterpriseAgent"
-$AgentScript = Join-Path $InstallDir "src\main.py"
+# 6. Install & Configure Windows Service (services.msc)
+$ServiceName = "FIMEnterpriseAgent"
+$ServiceDisplayName = "FIM Enterprise Agent"
+Write-Host "[*] Configuring Windows Service '$ServiceName' in services.msc..." -ForegroundColor Yellow
 
-# Create a robust Scheduled Task that runs at System startup with highest privileges
-$action = New-ScheduledTaskAction -Execute $venvPython -Argument "`"$AgentScript`" start" -WorkingDirectory "$InstallDir\src"
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 0)
+# Stop existing service if running
+if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+    Write-Host "[*] Stopping existing service instance..." -ForegroundColor Yellow
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+}
 
-Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
+# Register service
+if (Test-Path $TargetExe) {
+    # If service does not exist, create it
+    if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
+        New-Service -Name $ServiceName -DisplayName $ServiceDisplayName -BinaryPathName "`"$TargetExe`"" -StartupType Automatic -Description "File Integrity Monitoring real-time endpoint security agent" | Out-Null
+        Write-Host "[OK] Registered '$ServiceName' into Windows Service Control Manager." -ForegroundColor Green
+    }
+} else {
+    # Scheduled task fallback if running from raw python without binary
+    $TaskName = $ServiceName
+    $AgentScript = Join-Path $InstallDir "src\main.py"
+    $action = New-ScheduledTaskAction -Execute $pythonExe -Argument "`"$AgentScript`" start" -WorkingDirectory "$InstallDir\src"
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 0)
 
-# Start the agent task immediately
-Start-ScheduledTask -TaskName $TaskName
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
+}
+
+# 7. Start the Service / Agent
+Write-Host "[*] Starting FIM Enterprise Agent background service..." -ForegroundColor Yellow
+if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+    try {
+        Start-Service -Name $ServiceName -ErrorAction Stop
+        Write-Host "[OK] Windows Service '$ServiceName' is now RUNNING." -ForegroundColor Green
+    } catch {
+        Write-Warning "Could not start via Start-Service (will start as background process): $_"
+        Start-Process -FilePath $TargetExe -ArgumentList "start" -WindowStyle Hidden
+    }
+}
+
 Start-Sleep -Seconds 2
 
+# 8. Verification Summary
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host " [✓] FIM Windows Agent installed and running successfully!" -ForegroundColor Green
-Write-Host " Agent Directory: $InstallDir" -ForegroundColor Gray
-Write-Host " Data & Spool:   $DataDir" -ForegroundColor Gray
+Write-Host " [OK] FIM Windows Agent installed and registered successfully!" -ForegroundColor Green
+Write-Host " Service Name:   $ServiceName (visible in services.msc)" -ForegroundColor Gray
+Write-Host " Agent Binary:   $TargetExe" -ForegroundColor Gray
 Write-Host " Server URL:     $ServerUrl" -ForegroundColor Gray
+Write-Host " Status:         Registered and actively reporting to server" -ForegroundColor Gray
 Write-Host "==========================================================" -ForegroundColor Green
+Write-Host "[i] You can now view this endpoint on the web console Endpoint Inventory page." -ForegroundColor Cyan

@@ -79,7 +79,7 @@ class FIMAgentService:
         scan_stats = self.scanner.run_full_scan(self.config.monitored_paths)
         print(f"[+] Initial scan complete: {scan_stats}")
 
-        print("[✓] FIM Agent Service is actively running and monitoring.")
+        print("[OK] FIM Agent Service is actively running and monitoring.")
 
     def stop(self):
         print("[*] Stopping FIM Enterprise Windows Agent...")
@@ -92,7 +92,7 @@ class FIMAgentService:
         })
         # Final flush
         self.transport.flush_spool_batch()
-        print("[✓] FIM Agent Service stopped cleanly.")
+        print("[OK] FIM Agent Service stopped cleanly.")
 
     def _transport_loop(self):
         while self.is_running:

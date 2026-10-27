@@ -99,7 +99,41 @@ def build_msi():
     )
     app_dir.add_file("fim-agent.exe", src="fim-agent.exe")
 
-    # 7. Commit Cabinet (FCICreate) and database
+    # 7. Register Windows Service in services.msc
+    msilib.add_data(
+        db,
+        "ServiceInstall",
+        [(
+            "FIMAgentServiceInstall",             # ServiceInstall
+            "FIMEnterpriseAgent",                 # Name
+            "FIM Enterprise Agent",               # DisplayName
+            16,                                   # ServiceType (SERVICE_WIN32_OWN_PROCESS)
+            2,                                    # StartType (SERVICE_AUTO_START)
+            1,                                    # ErrorControl (SERVICE_ERROR_NORMAL)
+            None,                                 # LoadOrderGroup
+            None,                                 # Dependencies
+            "LocalSystem",                        # StartName
+            None,                                 # Password
+            None,                                 # Arguments
+            "FIMAgentExeComponent",               # Component_
+            "File Integrity Monitoring real-time endpoint security agent" # Description
+        )]
+    )
+
+    msilib.add_data(
+        db,
+        "ServiceControl",
+        [(
+            "FIMAgentServiceControl",             # ServiceControl
+            "FIMEnterpriseAgent",                 # Name
+            1 + 2 + 32,                           # Event (Start on install, Stop on uninstall, Delete on uninstall)
+            None,                                 # Arguments
+            1,                                    # Wait
+            "FIMAgentExeComponent"                # Component_
+        )]
+    )
+
+    # 8. Commit Cabinet (FCICreate) and database
     print("[*] Generating embedded cabinet stream...")
     cab.commit(db)
     db.Commit()

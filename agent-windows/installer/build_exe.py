@@ -27,6 +27,14 @@ def build():
         "--workpath",
         str(BUILD_DIR),
         "--clean",
+        "--hidden-import",
+        "win32timezone",
+        "--hidden-import",
+        "servicemanager",
+        "--hidden-import",
+        "win32service",
+        "--hidden-import",
+        "win32serviceutil",
         str(SRC_DIR / "main.py"),
     ]
 
@@ -34,12 +42,12 @@ def build():
     if res.returncode == 0:
         exe_path = DIST_DIR / "fim-agent.exe"
         print("==========================================================")
-        print(f"[✓] Successfully compiled: {exe_path}")
+        print(f"[OK] Successfully compiled: {exe_path}")
         print(f" Size: {exe_path.stat().st_size / (1024*1024):.2f} MB")
         print("==========================================================")
         return True
     else:
-        print("[✗] Compilation failed.")
+        print("[FAIL] Compilation failed.")
         return False
 
 

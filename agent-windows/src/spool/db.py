@@ -15,8 +15,20 @@ class LocalSpool:
     Guarantees that filesystem events are written to durable storage
     before network transmission.
     """
-    def __init__(self, db_path: Path = Path("data/spool.db")):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[Path] = None):
+        if db_path is None:
+            local_db = Path("data/spool.db")
+            if local_db.exists():
+                self.db_path = local_db
+            else:
+                program_data = os.environ.get("ProgramData")
+                if program_data:
+                    self.db_path = Path(program_data) / "FIMEnterprise" / "spool.db"
+                else:
+                    self.db_path = local_db
+        else:
+            self.db_path = db_path
+
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.Lock()
         self._init_db()

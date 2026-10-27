@@ -43,6 +43,7 @@ dist/
 *.sqlite-journal
 *.db
 *.db-journal
+agent_config.json
 postgres_data/
 opensearch_data/
 redis_data/

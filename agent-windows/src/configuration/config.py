@@ -1,16 +1,42 @@
 import json
 import os
+import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-DEFAULT_CONFIG_PATH = Path("agent_config.json")
-DEFAULT_DATA_DIR = Path("data")
+
+def get_default_storage_dir() -> Path:
+    # Use ProgramData on Windows if available
+    program_data = os.environ.get("ProgramData")
+    if program_data:
+        p = Path(program_data) / "FIMEnterprise"
+    else:
+        p = Path.cwd() / "data"
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    except Exception:
+        # Fallback to local data dir
+        fallback = Path.cwd() / "data"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
+def get_default_config_path() -> Path:
+    local_cfg = Path("agent_config.json")
+    if local_cfg.exists():
+        return local_cfg
+    storage = get_default_storage_dir()
+    global_cfg = storage / "agent_config.json"
+    if global_cfg.exists():
+        return global_cfg
+    return local_cfg if os.access(Path.cwd(), os.W_OK) else global_cfg
 
 
 class AgentConfig:
-    def __init__(self, config_path: Path = DEFAULT_CONFIG_PATH):
-        self.config_path = config_path
-        self.data_dir = DEFAULT_DATA_DIR
+    def __init__(self, config_path: Optional[Path] = None):
+        self.config_path = config_path or get_default_config_path()
+        self.data_dir = get_default_storage_dir()
         self.server_url: str = "http://localhost:8000"
         self.endpoint_id: Optional[str] = None
         self.endpoint_token: Optional[str] = None
@@ -44,6 +70,8 @@ class AgentConfig:
 
     def save(self):
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure parent directory of config path exists
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "server_url": self.server_url,
             "endpoint_id": self.endpoint_id,
