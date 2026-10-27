@@ -17,13 +17,17 @@ if (-not (Test-Path $SourceExe)) {
 
 Write-Host "[*] Packaging MSI installer for FIM Enterprise Windows Agent..." -ForegroundColor Cyan
 
-# Check if WiX toolset is present
-if (Get-Command candle.exe -ErrorAction SilentlyContinue) {
-    Write-Host "[+] WiX Toolset detected. Generating MSI with candle/light..." -ForegroundColor Green
-    # WiX build pipeline
-} else {
-    Write-Host "[!] WiX toolset not detected on PATH. Generating self-extracting installer package..." -ForegroundColor Yellow
-    Copy-Item $SourceExe (Join-Path $OutputDir "fim-agent-installer.exe") -Force
+$PythonExe = Join-Path $PSScriptRoot "..\..\.venv\Scripts\python.exe"
+if (-not (Test-Path $PythonExe)) {
+    $PythonExe = "python.exe"
 }
 
-Write-Host "[✓] Windows agent deployment artifacts ready in $OutputDir" -ForegroundColor Green
+$BuildScript = Join-Path $PSScriptRoot "build_msi.py"
+Write-Host "[*] Executing MSI generator: $BuildScript..." -ForegroundColor Cyan
+& $PythonExe $BuildScript
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "[OK] Windows agent MSI installer package created successfully." -ForegroundColor Green
+} else {
+    Write-Host "[!] MSI build failed with exit code $LASTEXITCODE" -ForegroundColor Red
+}
