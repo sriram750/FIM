@@ -64,7 +64,7 @@ export const App: React.FC = () => {
   const renderContent = () => {
     switch (currentTab) {
       case 'overview':
-        return <Dashboard health={health} onRefresh={loadHealth} isLoading={isLoading} />;
+        return <Dashboard health={health} onRefresh={loadHealth} isLoading={isLoading} onNavigate={setCurrentTab} />;
       case 'endpoints':
         return <EndpointsPage />;
       case 'policies':
@@ -80,7 +80,7 @@ export const App: React.FC = () => {
       case 'admin':
         return <AdministrationPage />;
       default:
-        return <Dashboard health={health} onRefresh={loadHealth} isLoading={isLoading} />;
+        return <Dashboard health={health} onRefresh={loadHealth} isLoading={isLoading} onNavigate={setCurrentTab} />;
     }
   };
 
