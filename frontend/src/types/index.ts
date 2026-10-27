@@ -28,9 +28,10 @@ export interface EndpointItem {
   hostname: string;
   domain?: string;
   ip_address?: string;
+  os_name?: string;
   os_version?: string;
   agent_version: string;
-  status: 'online' | 'offline' | 'unhealthy' | 'quarantined';
+  status: 'online' | 'offline' | 'unhealthy' | 'quarantined' | 'revoked';
   last_seen: string;
   is_isolated: boolean;
 }

@@ -105,27 +105,69 @@ export const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </button>
           </form>
 
-          {/* Quick Default Creds Hint */}
-          <div className="mt-6 pt-4 border-t border-[#1F293D] flex items-center justify-between text-[11px] text-gray-400">
-            <span className="flex items-center gap-1.5">
-              <KeyRound className="w-3.5 h-3.5 text-blue-400" /> Default Initial Admin
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setEmail('admin@fim.local');
-                setPassword('Admin@FIM2026!Secure');
-              }}
-              className="text-blue-400 hover:text-blue-300 font-medium"
-            >
-              Fill Demo Login
-            </button>
+          {/* Quick RBAC Role Selectors */}
+          <div className="mt-6 pt-5 border-t border-[#1F293D] space-y-3">
+            <div className="flex items-center justify-between text-xs text-gray-400">
+              <span className="flex items-center gap-1.5 font-medium text-gray-300">
+                <KeyRound className="w-3.5 h-3.5 text-blue-400" /> Select Demo Role (RBAC)
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('admin@fim.local');
+                  setPassword('Admin@FIM2026!Secure');
+                }}
+                className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between ${
+                  email === 'admin@fim.local'
+                    ? 'bg-blue-950/60 border-blue-500/80 text-white'
+                    : 'bg-[#0B0F17] border-[#1F293D] text-gray-300 hover:border-gray-600'
+                }`}
+              >
+                <div className="font-semibold text-xs text-blue-400">Admin</div>
+                <div className="text-[10px] text-gray-400 mt-1">Full Control</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('analyst@fim.local');
+                  setPassword('Analyst@FIM2026!Secure');
+                }}
+                className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between ${
+                  email === 'analyst@fim.local'
+                    ? 'bg-cyan-950/60 border-cyan-500/80 text-white'
+                    : 'bg-[#0B0F17] border-[#1F293D] text-gray-300 hover:border-gray-600'
+                }`}
+              >
+                <div className="font-semibold text-xs text-cyan-400">Analyst</div>
+                <div className="text-[10px] text-gray-400 mt-1">Events & Alerts</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('auditor@fim.local');
+                  setPassword('Auditor@FIM2026!Secure');
+                }}
+                className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between ${
+                  email === 'auditor@fim.local'
+                    ? 'bg-emerald-950/60 border-emerald-500/80 text-white'
+                    : 'bg-[#0B0F17] border-[#1F293D] text-gray-300 hover:border-gray-600'
+                }`}
+              >
+                <div className="font-semibold text-xs text-emerald-400">Auditor</div>
+                <div className="text-[10px] text-gray-400 mt-1">Read-Only Audit</div>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Footer */}
         <p className="text-center text-[11px] text-gray-400 mt-6 font-mono">
-          Argon2id Hashing • Role-Based Access Control • TLS 1.3
+          Argon2id Hashing • Role-Based Access Control (RBAC) • JWT Auth
         </p>
       </div>
     </div>

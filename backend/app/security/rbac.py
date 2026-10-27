@@ -93,6 +93,42 @@ async def seed_initial_security(db: AsyncSession):
         db.add(admin_user)
         logger.info(f"Initialized default administrator account: {settings.INITIAL_ADMIN_EMAIL}")
 
+    # Seed demo Analyst user
+    analyst_stmt = select(User).where(User.email == "analyst@fim.local")
+    a_res = await db.execute(analyst_stmt)
+    analyst_user = a_res.scalar_one_or_none()
+    if not analyst_user:
+        analyst_role = existing_roles.get("Analyst")
+        analyst_user = User(
+            id=str(uuid.uuid4()),
+            email="analyst@fim.local",
+            hashed_password=hash_password("Analyst@FIM2026!Secure"),
+            full_name="Security Analyst",
+            is_active=True,
+            is_superuser=False,
+            role_id=analyst_role.id if analyst_role else None,
+        )
+        db.add(analyst_user)
+        logger.info("Initialized default analyst account: analyst@fim.local")
+
+    # Seed demo Auditor user
+    auditor_stmt = select(User).where(User.email == "auditor@fim.local")
+    aud_res = await db.execute(auditor_stmt)
+    auditor_user = aud_res.scalar_one_or_none()
+    if not auditor_user:
+        auditor_role = existing_roles.get("Auditor")
+        auditor_user = User(
+            id=str(uuid.uuid4()),
+            email="auditor@fim.local",
+            hashed_password=hash_password("Auditor@FIM2026!Secure"),
+            full_name="Compliance Auditor",
+            is_active=True,
+            is_superuser=False,
+            role_id=auditor_role.id if auditor_role else None,
+        )
+        db.add(auditor_user)
+        logger.info("Initialized default auditor account: auditor@fim.local")
+
     await db.commit()
 
 
