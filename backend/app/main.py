@@ -24,6 +24,14 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database schema initialized and verified.")
 
+    # Seed initial RBAC roles and default administrator
+    from app.db.session import AsyncSessionLocal
+    from app.security.rbac import seed_initial_security
+    async with AsyncSessionLocal() as session:
+        await seed_initial_security(session)
+    logger.info("Default RBAC roles and initial security administrator seeded.")
+
+
     yield
 
     # Cleanup database engine connections

@@ -263,3 +263,55 @@ async def ingest_event_batch(
         count=len(acknowledged_ids),
         received_at=now_utc,
     )
+
+
+@router.get("/installer-info")
+async def get_installer_info():
+    """
+    Returns deployment commands and configuration tokens for Windows and Linux agent installation.
+    """
+    return {
+        "server_url": f"http://{settings.SERVER_HOST}:{settings.SERVER_PORT}",
+        "enrollment_token": settings.ENROLLMENT_TOKEN_SECRET,
+        "windows": {
+            "powershell_command": f'& "C:\\Temp\\FIM\\agent-windows\\installer\\install.ps1" -ServerUrl "http://{settings.SERVER_HOST}:{settings.SERVER_PORT}" -EnrollmentToken "{settings.ENROLLMENT_TOKEN_SECRET}"',
+            "exe_download_url": f"/api/v1/agents/download/windows-exe",
+            "msi_download_url": f"/api/v1/agents/download/windows-msi",
+        },
+        "linux": {
+            "bash_command": f'curl -sSL http://{settings.SERVER_HOST}:{settings.SERVER_PORT}/api/v1/agents/download/linux-script | sudo bash -s -- --server "http://{settings.SERVER_HOST}:{settings.SERVER_PORT}" --token "{settings.ENROLLMENT_TOKEN_SECRET}"',
+            "script_download_url": f"/api/v1/agents/download/linux-script",
+        }
+    }
+
+
+@router.get("/download/windows-exe")
+async def download_windows_exe():
+    from fastapi.responses import FileResponse, PlainTextResponse
+    import os
+    exe_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../agent-windows/dist/fim-agent.exe"))
+    if os.path.exists(exe_path):
+        return FileResponse(exe_path, media_type="application/vnd.microsoft.portable-executable", filename="fim-agent.exe")
+    return PlainTextResponse("fim-agent.exe not found on server", status_code=404)
+
+
+@router.get("/download/windows-msi")
+async def download_windows_msi():
+    from fastapi.responses import FileResponse, PlainTextResponse
+    import os
+    msi_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../agent-windows/dist/fim-agent-installer.msi"))
+    if os.path.exists(msi_path):
+        return FileResponse(msi_path, media_type="application/x-msi", filename="fim-agent-installer.msi")
+    return PlainTextResponse("fim-agent-installer.msi not found on server", status_code=404)
+
+
+@router.get("/download/linux-script")
+async def download_linux_script():
+    from fastapi.responses import FileResponse, PlainTextResponse
+    import os
+    script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../agent-linux/install.sh"))
+    if os.path.exists(script_path):
+        return FileResponse(script_path, media_type="text/x-shellscript", filename="install.sh")
+    return PlainTextResponse("# Linux agent installer not found on server", status_code=404)
+
+

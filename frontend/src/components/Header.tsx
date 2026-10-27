@@ -1,12 +1,15 @@
 import React from 'react';
-import { Bell, UserCheck, ShieldAlert, Wifi } from 'lucide-react';
+import { Bell, UserCheck, ShieldAlert, Wifi, LogOut } from 'lucide-react';
 import { SystemHealthData } from '../types';
+import { AuthUser } from '../api/auth';
 
 interface HeaderProps {
   health: SystemHealthData | null;
+  user: AuthUser | null;
+  onLogout: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ health }) => {
+export const Header: React.FC<HeaderProps> = ({ health, user, onLogout }) => {
   const getStatusBadge = () => {
     if (!health) {
       return (
@@ -61,15 +64,29 @@ export const Header: React.FC<HeaderProps> = ({ health }) => {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full"></span>
         </button>
 
-        {/* User Pill */}
+        {/* User Pill & Role */}
         <div className="flex items-center gap-3 pl-3 border-l border-[#1F293D]">
-          <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-            <UserCheck className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-xs">
+            {user?.full_name ? user.full_name.substring(0, 2).toUpperCase() : <UserCheck className="w-4 h-4" />}
           </div>
           <div className="text-left hidden sm:block">
-            <div className="text-xs font-semibold text-gray-200">Security Admin</div>
-            <div className="text-[10px] text-gray-400">admin@fim.local</div>
+            <div className="text-xs font-semibold text-gray-200 flex items-center gap-2">
+              <span>{user?.full_name || 'Security User'}</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-950 text-blue-300 border border-blue-800">
+                {user?.role || 'Analyst'}
+              </span>
+            </div>
+            <div className="text-[10px] text-gray-400">{user?.email || 'admin@fim.local'}</div>
           </div>
+
+          {/* Logout Button */}
+          <button
+            onClick={onLogout}
+            title="Log out of session"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-[#1A2234] transition ml-1"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </header>
